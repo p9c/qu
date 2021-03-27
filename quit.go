@@ -1,82 +1,105 @@
 package qu
 
 import (
-	logg "github.com/p9c/log"
+	"github.com/p9c/log"
+	"go.uber.org/atomic"
 	"strings"
 	"sync"
+	"time"
 )
 
+// C is your basic empty struct signalling channel
 type C chan struct{}
 
-var createdList []string
-var createdChannels []C
+var (
+	createdList     []string
+	createdChannels []C
+	mx              sync.Mutex
+	logEnabled      = atomic.NewBool(false)
+)
 
-var mx sync.Mutex
+// SetLogging switches on and off the channel logging
+func SetLogging(on bool) {
+	logEnabled.Store(on)
+}
 
+func l(a ...interface{}) {
+	if logEnabled.Load() {
+		D.Ln(a...)
+	}
+}
+
+// T creates an unbuffered chan struct{} for trigger and quit signalling (momentary and breaker switches)
 func T() C {
-	// PrintChanState()
-	// occ := GetOpenChanCount()
 	mx.Lock()
 	defer mx.Unlock()
-	createdList = append(createdList, logg.Caller("chan from", 1))
+	msg := log.Caller("chan from", 1)
+	l("created", msg)
+	createdList = append(createdList, msg)
 	o := make(C)
 	createdChannels = append(createdChannels, o)
-	// T.Ln("open channels:", len(createdList), len(createdChannels), occ)
 	return o
 }
 
+// Ts creates a buffered chan struct{} which is specifically intended for signalling without blocking, generally one is
+// the size of buffer to be used, though there might be conceivable cases where the channel should accept more signals
+// without blocking the caller
 func Ts(n int) C {
-	// PrintChanState()
-	// occ := GetOpenChanCount()
 	mx.Lock()
 	defer mx.Unlock()
-	createdList = append(createdList, logg.Caller("buffered chan at", 1))
+	msg := log.Caller("buffered chan from", 1)
+	l("created", msg)
+	createdList = append(createdList, msg)
 	o := make(C, n)
 	createdChannels = append(createdChannels, o)
-	// T.Ln("open channels:", len(createdList), len(createdChannels), occ)
 	return o
 }
 
+// Q closes the channel, which makes it emit a nil every time it is selected
 func (c C) Q() {
-	loc := GetLocForChan(c)
-	mx.Lock()
-	if !testChanIsClosed(c) {
-		_T.Ln("closing chan from "+loc, logg.Caller("\n"+strings.Repeat(" ", 48)+"from", 1))
-		close(c)
-	} else {
-		_T.Ln(
-			"from"+logg.Caller("", 1), "\n"+strings.Repeat(" ", 48)+
-				"channel", loc, "was already closed",
-		)
-	}
-	mx.Unlock()
-	// PrintChanState()
+	l(func() (o string) {
+		loc := getLocForChan(c)
+		mx.Lock()
+		defer mx.Unlock()
+		if !testChanIsClosed(c) {
+			close(c)
+			return "closing chan from " + loc + log.Caller("\n"+strings.Repeat(" ", 48)+"from", 1)
+		} else {
+			return "from" + log.Caller("", 1) + "\n" + strings.Repeat(" ", 48) +
+				"channel " + loc + " was already closed"
+		}
+	}(),
+	)
 }
 
+// Signal sends struct{}{} on the channel which functions as a momentary switch, useful in pairs for stop/start
 func (c C) Signal() {
+	l(func() (o string) { return "signalling " + getLocForChan(c) }())
 	c <- struct{}{}
 }
 
+// Wait should be placed with a `<-` in a select case in addition to the channel variable name
 func (c C) Wait() <-chan struct{} {
-	// T.Ln(logg.Caller(">>> waiting on quit channel at", 1))
+	l(func() (o string) { return "waiting on " + getLocForChan(c) + log.Caller("at", 1) }())
 	return c
 }
 
+// testChanIsClosed allows you to see whether the channel has been closed so you can avoid a panic by trying to close or
+// signal on it
 func testChanIsClosed(ch C) (o bool) {
 	if ch == nil {
 		return true
 	}
 	select {
 	case <-ch:
-		// D.Ln("chan is closed")
 		o = true
 	default:
 	}
-	// D.Ln("chan is not closed")
 	return
 }
 
-func GetLocForChan(c C) (s string) {
+// getLocForChan finds which record connects to the channel in question
+func getLocForChan(c C) (s string) {
 	s = "not found"
 	mx.Lock()
 	for i := range createdList {
@@ -91,67 +114,64 @@ func GetLocForChan(c C) (s string) {
 	return
 }
 
-func RemoveClosedChans() {
-	D.Ln("cleaning up closed channels (more than 50 now closed)")
-	var c []C
-	var l []string
-	// D.Ln(">>>>>>>>>>>")
-	for i := range createdChannels {
-		if i >= len(createdList) {
-			break
+// once a minute clean up the channel cache to remove closed channels no longer in use
+func init() {
+	go func() {
+		for {
+			<-time.After(time.Minute)
+			D.Ln("cleaning up closed channels")
+			var c []C
+			var ll []string
+			mx.Lock()
+			for i := range createdChannels {
+				if i >= len(createdList) {
+					break
+				}
+				if testChanIsClosed(createdChannels[i]) {
+				} else {
+					c = append(c, createdChannels[i])
+					ll = append(ll, createdList[i])
+				}
+			}
+			createdChannels = c
+			createdList = ll
+			mx.Unlock()
 		}
-		if testChanIsClosed(createdChannels[i]) {
-			// T.Ln(">>> closed", createdList[i])
-			// createdChannels[i].Q()
-		} else {
-			c = append(c, createdChannels[i])
-			l = append(l, createdList[i])
-			// T.Ln("<<< open", createdList[i])
-		}
-		// D.Ln(">>>>>>>>>>>")
-	}
-	createdChannels = c
-	createdList = l
+	}()
 }
 
+// PrintChanState creates an output showing the current state of the channels being monitored
+// This is a function for use by the programmer while debugging
 func PrintChanState() {
-	D.Ln(">>>>>>>>>>>")
+	mx.Lock()
 	for i := range createdChannels {
 		if i >= len(createdList) {
 			break
 		}
 		if testChanIsClosed(createdChannels[i]) {
 			_T.Ln(">>> closed", createdList[i])
-			// createdChannels[i].Q()
 		} else {
 			_T.Ln("<<< open", createdList[i])
 		}
 	}
-	D.Ln(">>>>>>>>>>>")
+	mx.Unlock()
 }
 
+// GetOpenChanCount returns the number of qu channels that are still open
+// todo: this needs to only apply to unbuffered type
 func GetOpenChanCount() (o int) {
 	mx.Lock()
-	// D.Ln(">>>>>>>>>>>")
 	var c int
 	for i := range createdChannels {
 		if i >= len(createdChannels) {
 			break
 		}
 		if testChanIsClosed(createdChannels[i]) {
-			// D.Ln("still open", createdList[i])
-			// createdChannels[i].Q()
 			c++
 		} else {
 			o++
-			// D.Ln(">>>> ",createdList[i])
 		}
-		// D.Ln(">>>>>>>>>>>")
-	}
-	if c > 50 {
-		RemoveClosedChans()
 	}
 	mx.Unlock()
-	// o -= len(createdChannels)
 	return
 }
