@@ -2,9 +2,10 @@ package qu
 
 import (
 	"github.com/p9c/log"
+	"github.com/p9c/qu/version"
 )
 
-var subsystem = log.AddLoggerSubsystem()
+var subsystem = log.AddLoggerSubsystem(version.PathBase)
 var F, E, W, I, D, _T log.LevelPrinter = log.GetLogPrinterSet(subsystem)
 
 func init() {
