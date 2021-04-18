@@ -1,11 +1,12 @@
 package qu
 
 import (
-	"github.com/p9c/log"
-	"go.uber.org/atomic"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/p9c/log"
+	"go.uber.org/atomic"
 )
 
 // C is your basic empty struct signalling channel

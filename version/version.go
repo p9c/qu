@@ -1,6 +1,10 @@
 package version
 
-import "fmt"
+//go:generate go run ./update/.
+
+import (
+	"fmt"
+)
 
 var (
 
@@ -9,24 +13,36 @@ var (
 	// GitRef is the gitref, as in refs/heads/branchname
 	GitRef = "refs/heads/main"
 	// GitCommit is the commit hash of the current HEAD
-	GitCommit = "91786c6dd9775a933968b3aa8fba977a28a80990"
+	GitCommit = "e217be8ddc72f85f668b68c2a8be7405db4e9f50"
 	// BuildTime stores the time when the current binary was built
-	BuildTime = "2021-03-28T03:41:47+02:00"
+	BuildTime = "2021-04-18T14:36:33+02:00"
 	// Tag lists the Tag on the build, adding a + to the newest Tag if the commit is
 	// not that commit
-	Tag = "v0.0.2"
+	Tag = "v0.0.3"
 	// PathBase is the path base returned from runtime caller
-	PathBase = "/home/loki/src/github.com/p9c/qu/"
+	PathBase = "/home/loki/src/github.com/p9c/matrjoska/pkg/qu/"
+	// Major is the major number from the tag
+	Major = 0
+	// Minor is the minor number from the tag
+	Minor = 0
+	// Patch is the patch version number from the tag
+	Patch = 3
+	// Meta is the extra arbitrary string field from Semver spec
+	Meta = ""
 )
 
 // Get returns a pretty printed version information string
 func Get() string {
 	return fmt.Sprint(
-		"ParallelCoin Pod\n"+
-		"	git repository: "+URL+"\n",
-		"	branch: "+GitRef+"\n"+
-		"	commit: "+GitCommit+"\n"+
-		"	built: "+BuildTime+"\n"+
-		"	Tag: "+Tag+"\n",
+		"\nRepository Information\n"+
+		"\tGit repository: "+URL+"\n",
+		"\tBranch: "+GitRef+"\n"+
+		"\tCommit: "+GitCommit+"\n"+
+		"\tBuilt: "+BuildTime+"\n"+
+		"\tTag: "+Tag+"\n",
+		"\tMajor:", Major, "\n",
+		"\tMinor:", Minor, "\n",
+		"\tPatch:", Patch, "\n",
+		"\tMeta: ", Meta, "\n",
 	)
 }

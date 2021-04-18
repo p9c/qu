@@ -2,6 +2,7 @@ package qu
 
 import (
 	"github.com/p9c/log"
+
 	"github.com/p9c/qu/version"
 )
 
@@ -11,10 +12,10 @@ var F, E, W, I, D, _T log.LevelPrinter = log.GetLogPrinterSet(subsystem)
 func init() {
 	// to filter out this package, uncomment the following
 	// var _ = log.AddFilteredSubsystem(subsystem)
-	
+
 	// to highlight this package, uncomment the following
 	// var _ = log.AddHighlightedSubsystem(subsystem)
-	
+
 	// these are here to test whether they are working
 	// F.Ln("F.Ln")
 	// E.Ln("E.Ln")
