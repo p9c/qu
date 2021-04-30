@@ -177,5 +177,6 @@ func Get() string {
 	path := filepath.Join(filepath.Join(PathBase, "version"), "version.go")
 	if e = ioutil.WriteFile(path, []byte(versionFileOut), 0666); E.Chk(e) {
 	}
+	// I.Ln("updated version.go written")
 	return
 }
